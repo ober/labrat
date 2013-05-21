@@ -1,0 +1,51 @@
+#!/usr/bin/env lua
+
+-- Threshold set here
+email = "ops@linbsd.org"
+email_if_over = 300 -- seconds
+
+if #arg > 0  then
+   if string.find(arg[1], "mon") then
+      monitor_mode = true
+   else
+      print("Usage:"  .. arg[0] ..  [[ <mon>
+# If no argument is specified we only display status.
+# If mon is passed we alert via email
+]])
+         return
+   end
+end
+
+package.cpath = package.cpath .. ";" .. os.getenv("HOME") .. "/.luarocks/lib/lua/5.1/?.so;;"
+package.path = package.path .. ";" .. os.getenv("HOME") .. "/.luarocks/share/lua/5.1/?.lua;;"
+
+local p = require 'pinky'
+local json = require 'cjson'
+local yaml = require "lyaml"
+local mydb = require "mydb"
+
+local home = os.getenv("HOME")
+if not home then
+   home = "/home/ubuntu/"
+end
+local config = yaml.load(p.read_file(home .. "/.mmtop_config_prod"))
+local offenders = 0
+
+local out = "Mysql Replica: Seconds Behind Master" .. "\n"
+
+for i,v in ipairs(config.hosts) do
+   if string.find(v.host, "prod_br_db_slave") then
+      local status = json.decode(mydb.pinky_main("/" .. v.host))
+      if status.status.value == "OK" then
+         if tonumber(status.data[1].Seconds_Behind_Master) > email_if_over then
+            offenders = offenders + 1
+         end
+         out = out .. v.host .. ":" .. status.data[1].Seconds_Behind_Master .. "\n"
+      end
+   end
+end
+
+if monitor_mode and offenders > 0 then
+   p.exec_command("/usr/bin/env echo \'" .. out .. "\' |mail -s \'Pinky-Mysql lag on " .. offenders .. " slaves over threshold " .. email_if_over .. " seconds \' " .. email)
+end
+print(out)
