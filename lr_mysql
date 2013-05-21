@@ -1,5 +1,8 @@
 #!/usr/bin/env lua
 
+-- Labrat: Monitor a list of mysql replica servers for their slave delay and alert if over threshold
+
+
 -- Threshold set here
 email = "ops@linbsd.org"
 email_if_over = 300 -- seconds
