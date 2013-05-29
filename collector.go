@@ -40,15 +40,10 @@ func get(start, done chan bool, prefix string, host string, port string, url str
 						panic(err)
 					}
 				}()
-				//buf := make([]byte, 1024)
 				buff,err := ioutil.ReadAll(resp.Body)
-				for {
-					if _, err := fo.Write(buff); err != nil {
-						panic(err)
-					}
+				if _, err := fo.Write(buff); err != nil {
+					panic(err)
 				}
-
-				//file, err := os.Open(
 				resp.Body.Close()
 			}
 			done <- true
