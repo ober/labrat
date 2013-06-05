@@ -30,10 +30,8 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	// issue the request
 
 	resp, err := http.Get(uri)
-	for i := 0; i < 5; i++ {
-		if resp.StatusCode == 200 {
-			break;
-		}
+	if resp.StatusCode == 200 {
+		resp, err := http.Get(uri)
 	}
 
 	if err != nil {
