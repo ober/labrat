@@ -1,10 +1,11 @@
 package main
 
 import (
-"flag"
-"fmt"
-"io"
-"io/ioutil"
+//	"math/rand"
+	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -22,7 +23,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	defer func() { <-finishedChan }()
 
 	// build the url
-	fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
+	// fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
 	s := []string{prefix, host, ":", port, url}
 	uri := strings.Join(s, "")
 
@@ -36,8 +37,9 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 
 	// create the file to write to
 	controller := strings.Split(url, "/")
-	filename := fmt.Sprintf("%s-%s", host, controller[2])
-	fmt.Printf("file: %s\n", filename)
+
+	filename := fmt.Sprintf("./output/%s-%s.json", host, controller[2])
+	//filename := fmt.Sprintf("./output/%s-%s-%d.json", host, controller[2], rand.Int())
 	f, err := os.Create(filename)
 	if err != nil {
 		panic(err)
@@ -53,6 +55,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 func main() {
 	var serverlist string
 	var concurrency int
+	rand.Seed( time.Now().UTC().UnixNano())
 
 	flag.IntVar(&concurrency, "c", 1, "number of parallel requests")
 	flag.StringVar(&port, "p", "44444", "default pinky port")
