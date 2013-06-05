@@ -28,7 +28,14 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	uri := strings.Join(s, "")
 
 	// issue the request
+
 	resp, err := http.Get(uri)
+	for i := 0; i < 5; i++ {
+		if resp.StatusCode == 200 {
+			break;
+		}
+	}
+
 	if err != nil {
 		fmt.Printf("XXX %v\n", err)
 		return
@@ -55,7 +62,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 func main() {
 	var serverlist string
 	var concurrency int
-	rand.Seed( time.Now().UTC().UnixNano())
+	// rand.Seed( time.Now().UTC().UnixNano())
 
 	flag.IntVar(&concurrency, "c", 1, "number of parallel requests")
 	flag.StringVar(&port, "p", "44444", "default pinky port")
