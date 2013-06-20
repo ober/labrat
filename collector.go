@@ -37,7 +37,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	// create the file to write to
 	controller := strings.Split(url, "/")
 	filename := fmt.Sprintf("%s-%s.json", host, controller[2])
-	fmt.Printf("file: %s\n", filename)
+	//fmt.Printf("file: %s\n", filename)
 	f, err := os.Create(filename)
 	if err != nil {
 		panic(err)
