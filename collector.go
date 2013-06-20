@@ -1,7 +1,6 @@
 package main
 
 import (
-//	"math/rand"
 	"flag"
 	"fmt"
 	"io"
@@ -28,12 +27,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	uri := strings.Join(s, "")
 
 	// issue the request
-
 	resp, err := http.Get(uri)
-	if resp.StatusCode == 200 {
-		resp, err := http.Get(uri)
-	}
-
 	if err != nil {
 		fmt.Printf("XXX %v\n", err)
 		return
@@ -42,9 +36,8 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 
 	// create the file to write to
 	controller := strings.Split(url, "/")
-
-	filename := fmt.Sprintf("./output/%s-%s.json", host, controller[2])
-	//filename := fmt.Sprintf("./output/%s-%s-%d.json", host, controller[2], rand.Int())
+	filename := fmt.Sprintf("%s-%s.json", host, controller[2])
+	fmt.Printf("file: %s\n", filename)
 	f, err := os.Create(filename)
 	if err != nil {
 		panic(err)
@@ -60,7 +53,6 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 func main() {
 	var serverlist string
 	var concurrency int
-	// rand.Seed( time.Now().UTC().UnixNano())
 
 	flag.IntVar(&concurrency, "c", 1, "number of parallel requests")
 	flag.StringVar(&port, "p", "44444", "default pinky port")
