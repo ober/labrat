@@ -16,45 +16,62 @@ var wg = sync.WaitGroup{}
 
 // assigned from command args
 var port, url string
+//var maxtime time.Duration
 
 func get(prefix string, host string, finishedChan <-chan bool) {
+	fmt.Printf("url:%s\n",url)
 	defer wg.Done()
 	defer func() { <-finishedChan }()
 
 	// build the url
-	// fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
+	//fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
 	s := []string{prefix, host, ":", port, url}
 	uri := strings.Join(s, "")
 
-	// issue the request
-	resp, err := http.Get(uri)
-	if err != nil {
-		fmt.Printf("XXX %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
+	// issue the request in a child goroutine to handle timing out
+	reqchan := make(chan bool)
+	go func() {
+		// close the reqchan on the way out to wake up the timeout select
+		defer func() { close(reqchan) }()
 
-	// create the file to write to
-	controller := strings.Split(url, "/")
-	filename := fmt.Sprintf("%s-%s.json", host, controller[2])
-	//fmt.Printf("file: %s\n", filename)
-	f, err := os.Create(filename)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
+		// issue the request
+		resp, err := http.Get(uri)
+		if err != nil {
+			fmt.Printf("XXX %v\n", err)
+			return
+		}
+		defer resp.Body.Close()
 
-	// copy to the file
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		panic(err)
+		// create the file to write to
+		controller := strings.Split(url, "/")
+		filename := fmt.Sprintf("%s-%s.json", host, controller[2])
+		//fmt.Printf("file: %s\n", filename)
+		f, err := os.Create(filename)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		// copy to the file
+		if _, err := io.Copy(f, resp.Body); err != nil {
+			panic(err)
+		}
+	}()
+
+	select {
+	case <-time.After(2 * time.Second):
+		fmt.Printf("timeout connecting to: %s", uri)
+	case <-reqchan:
 	}
 }
 
 func main() {
 	var serverlist string
 	var concurrency int
+	//var maxtime time.Duration
 
 	flag.IntVar(&concurrency, "c", 1, "number of parallel requests")
+	//flag.DurationVar(&maxtime, "t", 10, "number of seconds to wait before timing out")
 	flag.StringVar(&port, "p", "44444", "default pinky port")
 	flag.StringVar(&url, "u", "/pinky/disk", "url to hit")
 	flag.StringVar(&serverlist, "s", "./servers.txt", "List of servers to hit")
