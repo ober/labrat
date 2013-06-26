@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -18,8 +19,24 @@ var wg = sync.WaitGroup{}
 var port, url string
 //var maxtime time.Duration
 
+func createFile(filename string, contents io.Reader) {
+	//fmt.Printf("file: %s\n", filename)
+	f, err := os.Create(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	// copy to the file
+	if _, err := io.Copy(f, contents); err != nil {
+		panic(err)
+	}
+}
+
+
+
 func get(prefix string, host string, finishedChan <-chan bool) {
-	fmt.Printf("url:%s\n",url)
+	//fmt.Printf("url:%s\n",url)
 	defer wg.Done()
 	defer func() { <-finishedChan }()
 
@@ -27,6 +44,8 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	//fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
 	s := []string{prefix, host, ":", port, url}
 	uri := strings.Join(s, "")
+	controller := strings.Split(url, "/")
+	filename := fmt.Sprintf("%s-%s.json", host, controller[2])
 
 	// issue the request in a child goroutine to handle timing out
 	reqchan := make(chan bool)
@@ -37,29 +56,17 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 		// issue the request
 		resp, err := http.Get(uri)
 		if err != nil {
-			fmt.Printf("XXX %v\n", err)
+			createFile(filename, bytes.NewBufferString("{\"status\":{\"error\":\"Could not connect to host\", \"value\":\"FAIL\"}}"))
 			return
 		}
 		defer resp.Body.Close()
 
 		// create the file to write to
-		controller := strings.Split(url, "/")
-		filename := fmt.Sprintf("%s-%s.json", host, controller[2])
-		//fmt.Printf("file: %s\n", filename)
-		f, err := os.Create(filename)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-
-		// copy to the file
-		if _, err := io.Copy(f, resp.Body); err != nil {
-			panic(err)
-		}
+		createFile(filename, resp.Body)
 	}()
 
 	select {
-	case <-time.After(2 * time.Second):
+	case <-time.After(4 * time.Second):
 		fmt.Printf("timeout connecting to: %s", uri)
 	case <-reqchan:
 	}
