@@ -19,14 +19,13 @@ def process_json(pattern,&block)
         yield(data,name,json)
       end
     rescue Exception => e
-      puts "Could not read #{json} #{e.message}"
+      puts "Invalid json. Could not read #{json}"
     end
   end
 end
 
 def librato_load
   process_json("load") { |data,name,json|
-    puts "putting name:#{name}"
     data['data'].each_pair do |k,v|
       @queue.add "load_#{k}" => { :type => :gauge, :value => v, :source => name }
     end
@@ -35,7 +34,6 @@ end
 
 def librato_memfree
   process_json("memfree") { |data,name,json|
-    puts "putting name:#{name}"
     data['data'].each_pair do |k,v|
       @queue.add "memfree_#{k}" => { :type => :gauge, :value => v, :source => name }
     end
@@ -44,7 +42,6 @@ end
 
 def librato_netstat
   process_json("netstat") { |data,name,json|
-    puts "putting name:#{name}"
     data['data'].each_pair do |k,v|
       @queue.add "netstat_#{k}" => { :type => :counter, :value => v, :source => name }
     end
@@ -53,7 +50,6 @@ end
 
 def librato_redis
   process_json("redis") { |data,name,json|
-    puts "putting name:#{name}"
     @queue.add "redis_server_lru_clock" => { :type => :counter, :value => data['data']['server']['lru_clock'].to_f, :source => name } #"=>"834472",
     @queue.add "redis_server_redis_git_dirty" => { :type => :gauge, :value => data['data']['server']['redis_git_dirty'].to_f, :source => name } #"=>"0",
     @queue.add "redis_server_uptime_in_days" => { :type => :gauge, :value => data['data']['server']['uptime_in_days'].to_f, :source => name } #"=>"54",
@@ -101,10 +97,9 @@ end
 
 def librato_vmstat
   process_json("vmstat") { |data,name,json|
-    puts "putting name:#{name}"
-    @queue.add  "vmstat_CPU_context_switches" => { :type => :gauge, :value => data['data']['CPU_context_switches'], :source => name }
-    @queue.add  "vmstat_IO-wait_cpu_ticks" => { :type => :gauge, :value => data['data']['IO-wait_cpu_ticks'], :source => name }
-    @queue.add  "vmstat_IRQ_cpu_ticks" => { :type => :gauge, :value => data['data']['IRQ_cpu_ticks'], :source => name }
+    @queue.add  "vmstat_CPU_context_switches" => { :type => :counter, :value => data['data']['CPU_context_switches'], :source => name }
+    @queue.add  "vmstat_IO-wait_cpu_ticks" => { :type => :counter, :value => data['data']['IO-wait_cpu_ticks'], :source => name }
+    @queue.add  "vmstat_IRQ_cpu_ticks" => { :type => :counter, :value => data['data']['IRQ_cpu_ticks'], :source => name }
     @queue.add  "vmstat_K_active_memory" => { :type => :gauge, :value => data['data']['K_active_memory'], :source => name }
     @queue.add  "vmstat_K_buffer_memory" => { :type => :gauge, :value => data['data']['K_buffer_memory'], :source => name }
     @queue.add  "vmstat_K_free_memory" => { :type => :gauge, :value => data['data']['K_free_memory'], :source => name }
@@ -131,9 +126,18 @@ def librato_vmstat
   }
 end
 
+def librato_runit
+  process_json("runit") { |data,name,json|
+    data['data'].each_pair do |k,v|
+      unless /\*/.match(k) # XXX Fix this nonsense
+        @queue.add "runit_#{k.split('/').last.gsub(':','')}" => { :type => :counter, :value => v['uptime'].to_i, :source => name }
+      end
+    end
+  }
+end
+
 def librato_ping
-  process_json("load") { |data,name,json|
-    puts "putting name:#{name}"
+  process_json("ping") { |data,name,json|
     @queue.add  "ping_time_#{data['ip']}" => { :type => :gauge, :value => data['ping_time'], :source => name }
   }
 end
@@ -144,3 +148,5 @@ librato_netstat
 librato_redis
 librato_vmstat
 librato_ping
+librato_runit
+@queue.submit
