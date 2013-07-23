@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+
+
 require 'json'
 require 'pp'
 
@@ -19,11 +21,7 @@ def process_json(file,&block)
 end
 
 def monitor_disk()
-  ok_out = "OK:" 
-  warn_out = "Warn:"
-  warn_count = 0
-  crit_out = "Crit:"
-  crit_count = 0
+  ok_out,warn_out,crit_out,warn_count,crit_count = "OK:","Warn:","Crit:",0,0
   process_json("#{@dir}/#{@host}-#{@monitor}.json") do |data,name,json|
     data['data'].each_pair do |k,v|
       if k == "/" or k == "/data"
@@ -49,11 +47,7 @@ def monitor_disk()
 end
 
 def monitor_memory()
-  ok_out = "OK:" 
-  warn_out = "Warn:"
-  warn_count = 0
-  crit_out = "Crit:"
-  crit_count = 0
+  ok_out,warn_out,crit_out,warn_count,crit_count = "OK:","Warn:","Crit:",0,0
   process_json("#{@dir}/#{@host}-#{@monitor}.json") do |data,name,json|
     perfree = (data['data']['bc_free'].to_f/data['data']['total'].to_f * 100).to_i
     if perfree <= @crit.to_i
@@ -77,14 +71,10 @@ def monitor_memory()
 end
 
 def monitor_load()
-  ok_out = "OK:" 
-  warn_out = "Warn:"
-  warn_count = 0
-  crit_out = "Crit:"
-  crit_count = 0
+  ok_out,warn_out,crit_out,warn_count,crit_count = "OK:","Warn:","Crit:",0,0
   process_json("#{@dir}/#{@host}-#{@monitor}.json") do |data,name,json|
     one,five,fifteen = data['data']['one'].to_f, data['data']['five'].to_f, data['data']['fifteen'].to_f
-
+    
     if fifteen >= @crit.to_f
       crit_out << "15min load is #{fifteen}"
       crit_count += 1
@@ -104,7 +94,7 @@ def monitor_load()
     exit(1)
   else
     puts ok_out
-    exit(0)`
+    exit(0)
   end
 end
 
