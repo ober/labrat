@@ -1,113 +1,101 @@
 #!/usr/bin/env ruby
 
-
 require 'json'
 require 'pp'
 
 @monitor,@host,@warn,@crit = ARGV[0..3]
+
+@ok_out,@warn_out,@crit_out,@warn_count,@crit_count = "OK:","Warn:","Crit:",0,0
 
 @dir = "/data/ec2read/production"
 
 def process_json(file,&block)
   begin
     data = JSON.parse(File.read(file))
-    name = data['system']['name'] if data and data['system'] and data['system']['name']
-    if data and data['status'] and data['status']['value'] == "OK"
-      yield(data)
-    end
   rescue Exception => e
     puts "Invalid json. Could not read #{file}: error #{e.message}"
   end
+  name = data['system']['name'] if data and data['system'] and data['system']['name']
+  if data and data['status'] and data['status']['value'] == "OK"
+    yield(data)
+  end
+end
+
+def monitor_generic(&block)
+  process_json("#{@dir}/#{@host}-#{@monitor}.json") do |data,name,json|
+    yield(data,name,json)
+    if @crit_count > 0
+      puts @crit_out
+      exit(2)
+    elsif @warn_count > 0
+      puts @warn_out
+      exit(1)
+    else
+      puts @ok_out
+      exit(0)
+    end
+  end
+end
+
+def crit(msg)
+  @crit_out << msg
+  @crit_count += 1
+end
+
+def warn(msg)
+  @warn_out << msg
+  @warn_count += 1
+end
+
+def ok(msg)
+  @ok_out << msg
 end
 
 def monitor_disk()
-  ok_out,warn_out,crit_out,warn_count,crit_count = "OK:","Warn:","Crit:",0,0
-  process_json("#{@dir}/#{@host}-#{@monitor}.json") do |data,name,json|
+  monitor_generic do |data,name,json|
     data['data'].each_pair do |k,v|
       if k == "/" or k == "/data"
-        if v.last.to_i >= (100 - @crit.to_i)
-          crit_out << "#{k}: #{v.last} free," 
-          crit_count += 1
-        elsif v.last.to_i >= (100 - @warn.to_i)
-          warn_out << "#{k}: #{v.last} free," 
-          warn_count += 1
+        used = v.last.to_i
+        free = 100 - used
+        if used >= @crit.to_i
+          crit " #{k}: #{free}% free," 
+        elsif used >= @warn.to_i
+          warn " #{k}: #{free}% free," 
         elsif 
-          ok_out << ",#{k} = #{v.last} free"
+          ok " #{k} = #{free}% free"
         end
       end
     end
   end
-  if crit_count > 0
-    crit_out
-  elsif warn_count > 0
-    warn_out
-  else
-    ok_out
-  end
 end
 
-def monitor_memory()
-  ok_out,warn_out,crit_out,warn_count,crit_count = "OK:","Warn:","Crit:",0,0
-  process_json("#{@dir}/#{@host}-#{@monitor}.json") do |data,name,json|
+def monitor_memfree()
+  monitor_generic do |data,name,json|
     perfree = (data['data']['bc_free'].to_f/data['data']['total'].to_f * 100).to_i
     if perfree <= @crit.to_i
-      crit_out << "#{perfree}% free"
-      crit_count += 1
+      crit "#{perfree}% free"
     elsif perfree <= @warn.to_i
-      warn_out << "#{perfree}% free"
-      warn_count += 1
+      warn "#{perfree}% free"
     elsif 
-      ok_out << "#{perfree}% free"
+      ok "#{perfree}% free"
     end
-  end
-
-  if crit_count > 0
-    crit_out
-  elsif warn_count > 0
-    warn_out
-  else
-    ok_out
   end
 end
 
 def monitor_load()
-  ok_out,warn_out,crit_out,warn_count,crit_count = "OK:","Warn:","Crit:",0,0
-  process_json("#{@dir}/#{@host}-#{@monitor}.json") do |data,name,json|
+  monitor_generic do |data,name,json|
     one,five,fifteen = data['data']['one'].to_f, data['data']['five'].to_f, data['data']['fifteen'].to_f
-    
     if fifteen >= @crit.to_f
-      crit_out << "15min load is #{fifteen}"
-      crit_count += 1
+      crit "15min load is #{fifteen}"
     elsif fifteen >= @warn.to_f
-      warn_out << "15min load is #{fifteen}"
-      warn_count += 1
+      warn "15min load is #{fifteen}"
     elsif 
-      ok_out << "15min load is #{fifteen}"
+      ok "15min load is #{fifteen}"
     end
   end
-
-  if crit_count > 0
-    puts crit_out
-    exit(2)
-  elsif warn_count > 0
-    puts warn_out
-    exit(1)
-  else
-    puts ok_out
-    exit(0)
-  end
 end
 
+puts send("monitor_#{@monitor}")
 
-case @monitor
-when "disk"
-  puts monitor_disk()
-when "memfree"
-  puts monitor_memory()
-when "load"
-  puts monitor_load()
-else
-  puts "Fail: No monitor #{@monitor}"
-end
 
 
