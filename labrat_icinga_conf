@@ -1,0 +1,89 @@
+#!/usr/bin/env ruby
+require 'librato/metrics'
+require 'yaml'
+require 'json'
+require 'pp'
+
+@idir="/tmp/icinga"
+
+def process_json(pattern,&block)
+  Dir.glob("./*#{pattern}.json") do |json|
+    begin
+      data = JSON.parse(File.read(json))
+      name = data['system']['name'] if data and data['system'] and data['system']['name']
+      if data and data['status'] and data['status']['value'] == "OK"
+        yield(data,name,json)
+      end
+    rescue Exception => e
+      #puts "Invalid json. Could not read #{json}"
+    end
+  end
+end
+
+def generate_hosts(hosts)
+  process_json("*") { |data,name,json| 
+    hosts["groups"] ||= {}
+    hosts["addresses"] ||= {}
+    group = name.split("-i-").first
+    hosts["addresses"][name] = json[/([a-zA-Z0-9\-.]+)(\-[\w]+\.[\w]+$)/,1]
+    if group and group.match(/^stag|^prod/)
+      hosts["groups"][group] ||= {}
+      hosts["groups"][group]["i-#{name.split('-i-').last}"] ||= []
+      hosts["groups"][group]["i-#{name.split('-i-').last}"] << json.split("-").last.split(".").first 
+    end
+  }
+  hosts
+end
+
+hosts = generate_hosts({})
+
+# Create the base config
+hosts["groups"].keys.each do |stack|
+  hosts["groups"][stack].keys.each do |instance|
+    File.open("/tmp/icinga/#{stack}-#{instance}_incinga.cfg","wb+") do |f|
+      f.write <<EOF
+define host{
+        use                     generic-host            ; Name of host template to use
+        host_name               #{stack}-#{instance}
+        alias                   #{instance}
+        address                 #{hosts["addresses"]["#{stack}-#{instance}"]}
+        }
+EOF
+
+      if hosts["groups"][stack.to_s][instance.to_s].include?"disk"
+        f.write <<EOF
+define service{
+        use                             generic-service         ; Name of service template to use
+        host_name                       #{stack}-#{instance}
+        service_description             Disk Space
+        check_command                   lr_check_all_disks!80%!90%
+        }
+EOF
+      end
+
+      if hosts["groups"][stack.to_s][instance.to_s].include?"memfree"
+        f.write <<EOF
+define service{
+        use                             generic-service         ; Name of service template to use
+        host_name                       #{stack}-#{instance}
+        service_description             Free Memory
+        check_command                   lr_check_memory!20%!10%
+        }
+EOF
+      end
+
+      if hosts["groups"][stack.to_s][instance.to_s].include?"load"
+        f.write <<EOF
+define service{
+        use                             generic-service         ; Name of service template to use
+        host_name                       #{stack}-#{instance}
+        service_description             Fifteen minute load
+        check_command                   lr_check_load!10!4
+        }
+EOF
+      end
+
+    end
+  end
+end
+

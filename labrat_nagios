@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#
+# Wrapper for Ruby parser
+#
+
+#/usr/local/rvm/bin/rvm-exec 1.9.3 /data/labrat/labrat_nagios.rb
+/usr/local/rvm/rubies/labrat/bin/ruby /data/labrat/labrat_nagios.rb $@
