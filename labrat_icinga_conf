@@ -78,11 +78,10 @@ define service{
         use                             generic-service         ; Name of service template to use
         host_name                       #{stack}-#{instance}
         service_description             Fifteen minute load
-        check_command                   lr_check_load!10!4
+        check_command                   lr_check_load!4!10
         }
 EOF
       end
-
     end
   end
 end
