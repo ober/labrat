@@ -95,6 +95,23 @@ def monitor_load()
   end
 end
 
+def monitor_dpkg()
+  monitor_generic do |data,name,json|
+    security, pending = data['data']['updates']['security'],data['data']['updates']['be']
+    msg = "Pending security fixes are: #{security}"
+    if security >= @crit.to_f
+      crit msg
+    elsif security >= @warn.to_f
+      warn msg
+    elsif 
+      ok msg
+    end
+  end
+end
+
+
+
+
 puts send("monitor_#{@monitor}")
 
 
