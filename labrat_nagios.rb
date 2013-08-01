@@ -109,10 +109,4 @@ def monitor_dpkg()
   end
 end
 
-
-
-
 puts send("monitor_#{@monitor}")
-
-
-
