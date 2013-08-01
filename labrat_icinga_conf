@@ -82,6 +82,17 @@ define service{
         }
 EOF
       end
+
+      if hosts["groups"][stack.to_s][instance.to_s].include?"dpkg"
+        f.write <<EOF
+define service{
+        use                             generic-service         ; Name of service template to use
+        host_name                       #{stack}-#{instance}
+        service_description             Security Updates Pending
+        check_command                   lr_check_dpkg!10!20
+        }
+EOF
+      end
     end
   end
 end
