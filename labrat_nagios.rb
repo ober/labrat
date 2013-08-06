@@ -99,14 +99,29 @@ def monitor_dpkg()
   monitor_generic do |data,name,json|
     security, pending = data['data']['updates']['security'],data['data']['updates']['be']
     msg = "Pending security fixes are: #{security}"
-    if security >= @crit.to_f
+    if security.first.to_f >= @crit.to_f
       crit msg
-    elsif security >= @warn.to_f
+    elsif security.first.to_f >= @warn.to_f
       warn msg
     elsif 
       ok msg
     end
   end
 end
+
+def monitor_chef()
+  monitor_generic do |data,name,json|
+    delta = data['system']['time'] - data['data']['modification']
+    msg = "System last cooked: #{delta.to_f/84600} days ago"
+    if delta.to_i >= @crit.to_i
+      crit msg
+    elsif delta >= @warn.to_i
+      warn msg
+    elsif 
+      ok msg
+    end
+  end
+end
+
 
 puts send("monitor_#{@monitor}")
