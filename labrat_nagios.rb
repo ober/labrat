@@ -109,7 +109,7 @@ def monitor_dpkg()
   end
 end
 
-def monitor_chef()
+def monitor_stat()
   monitor_generic do |data,name,json|
     delta = data['system']['time'] - data['data']['modification']
     msg = "System last cooked: #{delta.to_f/84600} days ago"
