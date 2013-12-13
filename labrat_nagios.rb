@@ -123,5 +123,4 @@ def monitor_stat()
   end
 end
 
-
 puts send("monitor_#{@monitor}")
