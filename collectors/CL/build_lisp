@@ -1,0 +1,2 @@
+(load "./labrat.lisp")
+(sb-ext:save-lisp-and-die "llabrat" :executable t :toplevel 'fetch-each-server)
