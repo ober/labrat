@@ -7,8 +7,6 @@ require 'pp'
 @config = YAML::load(File.read("#{ENV['HOME']}/.librato.yml"))
 Librato::Metrics.authenticate @config['email'], @config['api_token']
 
-@queue = Librato::Metrics::Queue.new
-
 def process_json(pattern,&block)
   Dir.glob("./*#{pattern}.json") do |json|
     begin
@@ -19,12 +17,15 @@ def process_json(pattern,&block)
         yield(data,name,json)
       end
     rescue Exception => e
-      puts "Invalid json. Could not read #{json}"
+      File.open("/data/ec2read/librato_submit.err", "a+") {|f|
+        f.puts "Invalid json. Could not read #{json}: #{e.inspect}"
+      }
     end
   end
 end
 
 def librato_load
+  puts "in #{__method__}"
   process_json("load") { |data,name,json|
     data['data'].each_pair do |k,v|
       @queue.add "load_#{k}" => { :type => :gauge, :value => v, :source => name }
@@ -33,6 +34,7 @@ def librato_load
 end
 
 def librato_memfree
+  puts "in #{__method__}"
   process_json("memfree") { |data,name,json|
     data['data'].each_pair do |k,v|
       @queue.add "memfree_#{k}" => { :type => :gauge, :value => v, :source => name }
@@ -41,6 +43,7 @@ def librato_memfree
 end
 
 def librato_netstat
+  puts "in #{__method__}"
   process_json("netstat") { |data,name,json|
     data['data'].each_pair do |k,v|
       @queue.add "netstat_#{k}" => { :type => :counter, :value => v, :source => name }
@@ -49,6 +52,7 @@ def librato_netstat
 end
 
 def librato_redis
+  puts "in #{__method__}"
   process_json("redis") { |data,name,json|
     @queue.add "redis_server_lru_clock" => { :type => :counter, :value => data['data']['server']['lru_clock'].to_f, :source => name } #"=>"834472",
     @queue.add "redis_server_redis_git_dirty" => { :type => :gauge, :value => data['data']['server']['redis_git_dirty'].to_f, :source => name } #"=>"0",
@@ -96,6 +100,7 @@ def librato_redis
 end
 
 def librato_vmstat
+  puts "in #{__method__}"
   process_json("vmstat") { |data,name,json|
     @queue.add  "vmstat_CPU_context_switches" => { :type => :counter, :value => data['data']['CPU_context_switches'], :source => name }
     @queue.add  "vmstat_IO-wait_cpu_ticks" => { :type => :counter, :value => data['data']['IO-wait_cpu_ticks'], :source => name }
@@ -127,6 +132,7 @@ def librato_vmstat
 end
 
 def librato_runit
+  puts "in #{__method__}"
   process_json("runit") { |data,name,json|
     data['data'].each_pair do |k,v|
       unless /\*/.match(k) # XXX Fix this nonsense
@@ -137,12 +143,14 @@ def librato_runit
 end
 
 def librato_ping
+  puts "in #{__method__}"
   process_json("ping") { |data,name,json|
     @queue.add  "ping_time_#{data['ip']}" => { :type => :gauge, :value => data['ping_time'], :source => name }
   }
 end
 
 def librato_memcache
+  puts "in #{__method__}"
   process_json("memcache") { |data,name,json|
     @queue.add :memcache_uptime => { :type => :gauge, :value => data['data']['uptime'].to_i, :source => name} #value:21634968
     @queue.add :memcache_time => { :type => :counter, :value => data['data']['time'].to_i, :source => name} #time value:1372707119
@@ -184,12 +192,61 @@ def librato_memcache
   }
 end
 
-librato_load
-librato_memfree
-librato_netstat
-librato_redis
-librato_vmstat
-librato_ping
-librato_runit
-librato_memcache
-@queue.submit
+
+def librato_rss
+  puts "in #{__method__}"
+  process_json("process") do |data,name,json|
+    if /stag|prod/.match(name)
+      data['data'].select{|k,v| /node/.match(v[7]) }.each do |x,y|
+        #puts "pid:#{x} rss: #{y[5]} name:#{y[7..-1].join(" ")}"
+        @queue.add :node_rss => { :type => :gauge, :value => y[5], :source => "#{name}-#{x}"}
+      end
+      data['data'].select{|k,v| /unicorn worker/.match(v[7..-1].join(" ")) }.each do |x,y|
+        #puts "pid:#{x} rss: #{y[5]} name:#{y[7..-1].join(" ")}"
+        @queue.add :unicorn_rss => { :type => :gauge, :value => y[5], :source => "#{name}-#{x}"}
+      end
+
+      data['data'].select{|k,v| /Rack/.match(v[7]) }.each do |x,y|
+        #puts "pid:#{x} rss: #{y[5]} name:#{y[7..-1].join(" ")}"
+        @queue.add :passenger_rss => { :type => :gauge, :value => y[5], :source => "#{name}-#{x}"}
+      end
+
+    end
+  end
+end
+
+
+metrics = [ 
+    :load, 
+    :memfree,
+    :netstat,
+    :redis,
+    :vmstat,
+    :ping,
+    :runit,
+    :memcache,
+    :rss
+  ]
+
+metrics.each do |m|
+  @queue = Librato::Metrics::Queue.new
+  send("librato_#{m}")
+  begin
+  @queue.submit
+    rescue Exception => e
+      File.open("/data/ec2read/librato_submit_librato.err", "a+") {|f|
+        f.puts "Librato did not like our data #{e.inspect}"
+      }
+    end
+end
+
+#librato_load
+#librato_memfree
+#librato_netstat
+#librato_redis
+#librato_vmstat
+#librato_ping
+#librato_runit
+#librato_memcache
+#librato_rss
+

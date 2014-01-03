@@ -41,7 +41,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	defer func() { <-finishedChan }()
 
 	// build the url
-	//fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
+ 	//fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
 	s := []string{prefix, host, ":", port, url}
 	uri := strings.Join(s, "")
 	controller := strings.Split(url, "/")
@@ -56,6 +56,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 		// issue the request
 		resp, err := http.Get(uri)
 		if err != nil {
+			fmt.Printf("timeout connecting to: %s\n err:%s", uri, err)
 			createFile(filename, bytes.NewBufferString("{\"status\":{\"error\":\"Could not connect to host\", \"value\":\"FAIL\"}}"))
 			return
 		}
@@ -67,7 +68,8 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 
 	select {
 	case <-time.After(4 * time.Second):
-		fmt.Printf("timeout connecting to: %s", uri)
+		createFile(filename, bytes.NewBufferString("{\"status\":{\"error\":\"Timeout connecting to host\", \"value\":\"FAIL\"}}"))
+		fmt.Printf("timeout connecting to: %s\n", uri)
 	case <-reqchan:
 	}
 }
