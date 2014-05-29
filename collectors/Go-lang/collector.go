@@ -57,7 +57,7 @@ func newStatus(err, value, content string) Status {
 // {
 //    "response" : {
 //       "value"   : "FAIL",
-//       "error"   : "Timeout connecting to host"
+//       "error"   : "Timeout connecting to host",
 //       "content" : "503 Bad Gateway"
 //    }
 // }
