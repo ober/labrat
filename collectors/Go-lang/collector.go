@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ var wg = sync.WaitGroup{}
 
 // assigned from command args
 var port, url string
+
 //var maxtime time.Duration
 
 func createFile(filename string, contents io.Reader) {
@@ -33,7 +35,39 @@ func createFile(filename string, contents io.Reader) {
 	}
 }
 
+// type for error responses
+type Response struct {
+	Err     string `json:"error"`
+	Value   string `json:"value"`
+	Content string `json:"content"`
+}
 
+// type for status
+type Status struct {
+	R Response `json:"response"`
+}
+
+// newStatus creates a new Status with err and value
+func newStatus(err, value, content string) Status {
+	return Status{Response{err, value, content}}
+}
+
+// jSONError encoding status into json
+// for example:
+// {
+//    "response" : {
+//       "value"   : "FAIL",
+//       "error"   : "Timeout connecting to host",
+//       "content" : "503 Bad Gateway"
+//    }
+// }
+func jSONError(s Status) *bytes.Buffer {
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return bytes.NewBuffer(b)
+}
 
 func get(prefix string, host string, finishedChan <-chan bool) {
 	//fmt.Printf("url:%s\n",url)
@@ -41,7 +75,7 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 	defer func() { <-finishedChan }()
 
 	// build the url
- 	//fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
+	//fmt.Printf("get: prefix:%s host:%s port:%s url:%s\n", prefix, host, port, url)
 	s := []string{prefix, host, ":", port, url}
 	uri := strings.Join(s, "")
 	controller := strings.Split(url, "/")
@@ -57,18 +91,37 @@ func get(prefix string, host string, finishedChan <-chan bool) {
 		resp, err := http.Get(uri)
 		if err != nil {
 			fmt.Printf("timeout connecting to: %s\n err:%s", uri, err)
-			createFile(filename, bytes.NewBufferString("{\"status\":{\"error\":\"Could not connect to host\", \"value\":\"FAIL\"}}"))
+			createFile(filename, jSONError(newStatus("Could not connect to host", "FAIL", err.Error())))
 			return
 		}
+
 		defer resp.Body.Close()
 
+		buf, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			panic(err)
+		}
+
+		if resp.StatusCode != 200 {
+			createFile(filename, jSONError(newStatus("not a 200", resp.Status, (string)(buf))))
+			return
+		}
+
+		var i interface{}
+		// try to decode the json received
+
+		err = json.Unmarshal(buf, &i)
+		if err != nil {
+			createFile(filename, jSONError(newStatus("invalid JSON", "FAIL", (string)(buf))))
+		}
 		// create the file to write to
-		createFile(filename, resp.Body)
+		createFile(filename, bytes.NewBuffer(buf))
 	}()
 
 	select {
 	case <-time.After(4 * time.Second):
-		createFile(filename, bytes.NewBufferString("{\"status\":{\"error\":\"Timeout connecting to host\", \"value\":\"FAIL\"}}"))
+		createFile(filename, jSONError(newStatus("Timeout connecting to host", "FAIL", "")))
 		fmt.Printf("timeout connecting to: %s\n", uri)
 	case <-reqchan:
 	}
